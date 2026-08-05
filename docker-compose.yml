@@ -1,0 +1,28 @@
+services:
+  # Автономный прокси на stdlib (рекомендуется). Трекер направляйте на
+  # хост:5455 — прокси правит GPS-пакеты и проксирует остальное на апстрим.
+  coord-fix:
+    build: .
+    image: petsee-coord-fix
+    container_name: petsee-coord-fix
+    restart: unless-stopped
+    ports:
+      - "5455:5455"
+    environment:
+      LISTEN: "0.0.0.0:5455"
+      UPSTREAM: "apptrackpets.com:5455"
+
+  # Альтернатива: тот же фикс, но через mitmproxy (reverse-режим, как в
+  # исходном захвате). Запуск: docker compose --profile mitm up mitm
+  mitm:
+    image: mitmproxy/mitmproxy:latest
+    container_name: petsee-mitm
+    profiles: ["mitm"]
+    restart: unless-stopped
+    ports:
+      - "5455:5455"
+    volumes:
+      - ./src:/app/src:ro
+    command: >
+      mitmdump --mode reverse:tcp://apptrackpets.com:5455 -p 5455
+      -s /app/src/mitm_fix_addon.py
