@@ -35,6 +35,10 @@ services:
       GEOLOCATION_ENABLE: "true"
       GEOLOCATION_TYPE: google
       GEOLOCATION_KEY: ${GEOLOCATION_KEY:?set in .env}
+      # Батарея приходит только в heartbeat (0x13); переносим её на позиции
+      # GPS и Network Scan, чтобы последняя позиция всегда её показывала.
+      PROCESSING_COPY_ATTRIBUTES_ENABLE: "true"
+      PROCESSING_COPY_ATTRIBUTES: batteryLevel
       LOGGER_CONSOLE: "true"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8082/api/health"]
