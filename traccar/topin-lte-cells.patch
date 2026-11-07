@@ -12,7 +12,7 @@ index 06ec9badb..3108c0b1f 100644
  
              if (buf.readableBytes() > 2) {
 diff --git a/src/test/java/org/traccar/protocol/TopinProtocolDecoderTest.java b/src/test/java/org/traccar/protocol/TopinProtocolDecoderTest.java
-index 982262b06..0f10ea361 100644
+index 982262b06..342c4e18f 100644
 --- a/src/test/java/org/traccar/protocol/TopinProtocolDecoderTest.java
 +++ b/src/test/java/org/traccar/protocol/TopinProtocolDecoderTest.java
 @@ -21,10 +21,6 @@ public class TopinProtocolDecoderTest extends ProtocolTest {
@@ -53,8 +53,8 @@ index 982262b06..0f10ea361 100644
 +                + "4cbc8aaf0049e019545d9084539636544d5ea6559636544d5eaa560300d60700"
 +                + "000ce80000104c5a00000ce80000104d6400000ce80000104c5a000d0a"),
 +                position(Checks.NONE).network(network()
-+                        .cell(cell().mcc(214).mnc(7).lac(3304).cid(4172).signal(90))
-+                        .cell(cell().mcc(214).mnc(7).lac(3304).cid(4173).signal(100))));
++                        .cell(cell().mcc(214).mnc(7).lac(3304).cid(4172).signal(-90))
++                        .cell(cell().mcc(214).mnc(7).lac(3304).cid(4173).signal(-100))));
 +
          verifyDecode(decoder, binary(
                  "787801300d0a"));
