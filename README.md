@@ -106,6 +106,28 @@ docker compose --profile mitm up -d mitm
 `UPSTREAM` (см. секцию `environment` в `docker-compose.yml`). Образ —
 `python:3.12-slim`, без зависимостей, запуск от непривилегированного пользователя.
 
+### Mirror в Traccar
+
+Прокси вдобавок отправляет **Mirror** — сырые байты трекера, до
+hemisphere-фикса — в Traccar (`MIRROR`, по умолчанию `traccar:5199`, порт
+протокола Topin). Ответы Traccar выбрасываются, а его падение не влияет на
+путь к Vendor Cloud. Подробности в [ADR 0001](docs/adr/0001-mirror-into-native-topin.md).
+
+Traccar собирается из `traccar/Dockerfile`: это официальный образ той же
+версии с `tracker-server.jar`, пересобранным с
+[`traccar/topin-lte-cells.patch`](traccar/topin-lte-cells.patch) (соты в
+LTE-раскладке 4+4 байта). Тест декодера Topin прогоняется прямо при сборке.
+
+Нужен `.env` рядом с compose (он в `.gitignore`):
+
+```
+POSTGRES_PASSWORD=...
+GEOLOCATION_KEY=...   # Google Geolocation API, для Network Scan
+```
+
+UI Traccar публикуется только на tailscale-адресе `100.64.0.18:8082`, а
+публичный доступ идёт через Caddy (`traccar.zignet.win`).
+
 ### Офлайн-декодер дампа
 
 ```bash
@@ -115,9 +137,7 @@ python3 src/decode_dump.py petsee.mitm
 ## Тесты
 
 ```bash
-python3 -c "import sys; sys.path.insert(0,'tests'); import test_gt06 as t; \
-[getattr(t,n)() for n in dir(t) if n.startswith('test_')]; print('OK')"
-# или, если есть pytest:  python3 -m pytest tests/ -q
+uv run pytest -q
 ```
 
 ## Оговорки

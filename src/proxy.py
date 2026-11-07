@@ -2,10 +2,12 @@
 Автономный TCP-прокси для исправления координат трекера apptrackpets.
 Без зависимостей (только stdlib). Альтернатива mitmproxy-аддону.
 
-    python3 src/proxy.py --listen 0.0.0.0:5455 --upstream apptrackpets.com:5455
+    python3 src/proxy.py --listen 0.0.0.0:5455 --upstream apptrackpets.com:5455 \
+                         --mirror traccar:5199
 
 Трекер направляете на этот прокси; прокси правит GPS-пакеты клиент->сервер
-и прозрачно проксирует остальное в обе стороны.
+и прозрачно проксирует остальное в обе стороны. Сырой поток трекера (до
+правки) копируется в Traccar — см. mirror.py.
 """
 
 import argparse
@@ -13,10 +15,11 @@ import asyncio
 import os
 
 from gt06 import iter_frames, is_gps_frame, parse_gps, fix_gps_frame, app_display
+from mirror import Mirror
 
 
-async def pump_client_to_server(reader, writer):
-    """Клиент(трекер) -> сервер: разбираем кадры и правим GPS."""
+async def pump_client_to_server(reader, writer, mirror):
+    """Клиент(трекер) -> сервер: разбираем кадры и правим GPS; сырой поток — в Mirror."""
     buf = b""
     try:
         while True:
@@ -25,6 +28,7 @@ async def pump_client_to_server(reader, writer):
                 break
             buf += chunk
             frames, buf = iter_frames(buf)
+            mirror.feed(chunk, frames)
             out = bytearray()
             for frame in frames:
                 if is_gps_frame(frame):
@@ -59,7 +63,7 @@ async def pump_raw(reader, writer):
         writer.close()
 
 
-def make_handler(upstream_host, upstream_port):
+def make_handler(upstream_host, upstream_port, mirror_host, mirror_port):
     async def handle(client_reader, client_writer):
         peer = client_writer.get_extra_info("peername")
         print(f"[+] подключение {peer}", flush=True)
@@ -70,11 +74,13 @@ def make_handler(upstream_host, upstream_port):
             print(f"[!] апстрим недоступен: {e}", flush=True)
             client_writer.close()
             return
+        mirror = Mirror(mirror_host, mirror_port)
         await asyncio.gather(
-            pump_client_to_server(client_reader, srv_writer),
+            pump_client_to_server(client_reader, srv_writer, mirror),
             pump_raw(srv_reader, client_writer),
             return_exceptions=True,
         )
+        await mirror.close()
         print(f"[-] отключение {peer}", flush=True)
 
     return handle
@@ -85,13 +91,18 @@ async def main():
     ap.add_argument("--listen", default=os.environ.get("LISTEN", "0.0.0.0:5455"))
     ap.add_argument("--upstream",
                     default=os.environ.get("UPSTREAM", "apptrackpets.com:5455"))
+    ap.add_argument("--mirror", default=os.environ.get("MIRROR", "traccar:5199"),
+                    help="Traccar Topin host:port для Mirror")
     args = ap.parse_args()
 
     lh, lp = args.listen.rsplit(":", 1)
     uh, up = args.upstream.rsplit(":", 1)
+    mh, mp = args.mirror.rsplit(":", 1)
 
-    server = await asyncio.start_server(make_handler(uh, int(up)), lh, int(lp))
-    print(f"[*] слушаю {args.listen}, апстрим {args.upstream}", flush=True)
+    server = await asyncio.start_server(
+        make_handler(uh, int(up), mh, int(mp)), lh, int(lp))
+    print(f"[*] слушаю {args.listen}, апстрим {args.upstream}, "
+          f"mirror {args.mirror}", flush=True)
     async with server:
         await server.serve_forever()
 

@@ -11,6 +11,53 @@ services:
     environment:
       LISTEN: "0.0.0.0:5455"
       UPSTREAM: "apptrackpets.com:5455"
+      MIRROR: "traccar:5199"
+
+  # Traccar с патчем Topin (traccar/Dockerfile). Получает Mirror на 5199
+  # внутри сети compose; UI только на tailscale-адресе: docker обходит ufw,
+  # так что 0.0.0.0 здесь открыл бы UI в интернет.
+  traccar:
+    build: ./traccar
+    image: petsee-traccar
+    container_name: petsee-traccar
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "100.64.0.18:8082:8082"
+    environment:
+      CONFIG_USE_ENVIRONMENT_VARIABLES: "true"
+      DATABASE_DRIVER: org.postgresql.Driver
+      DATABASE_URL: jdbc:postgresql://db:5432/traccar
+      DATABASE_USER: traccar
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      GEOLOCATION_ENABLE: "true"
+      GEOLOCATION_TYPE: google
+      GEOLOCATION_KEY: ${GEOLOCATION_KEY:?set in .env}
+      LOGGER_CONSOLE: "true"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8082/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  db:
+    image: postgres:17-alpine
+    container_name: petsee-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: traccar
+      POSTGRES_USER: traccar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "traccar", "-d", "traccar"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Альтернатива: тот же фикс, но через mitmproxy (reverse-режим, как в
   # исходном захвате). Запуск: docker compose --profile mitm up mitm
@@ -26,3 +73,6 @@ services:
     command: >
       mitmdump --mode reverse:tcp://apptrackpets.com:5455 -p 5455
       -s /app/src/mitm_fix_addon.py
+
+volumes:
+  db:

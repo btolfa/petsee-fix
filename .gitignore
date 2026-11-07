@@ -56,3 +56,8 @@ htmlcov/
 
 # pyenv
 # .python-version
+### uv
+uv.lock
+
+### cf CLI cache
+.cloudflare/
